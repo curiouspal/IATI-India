@@ -1,0 +1,400 @@
+---
+title: "Nature of Foreign Aid flowing into India"
+author: by Anirban Pal
+date: "November 16, 2015"
+output: html_document
+---
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+library(ggplot2)
+```
+This analysis is based on the data published through the International Aid Transparency Initiative (IATI) registry on development projects funded by foreign aid. I am interested in exploring the nature of funding and funding agencies that pay for development work specifically in the context of **India as the recipient country**. 
+
+# Data
+\ \
+The data used for the analysis comes from the IATI Registry ( http://iatiregistry.org/ ) where more than 350 organizations, including multilateral development agencies, international and national NGOs, governments and the private sector working on human development, publish their financial data in a standardized format. The IATI Datastore gathers all data published to the IATI standard into a single queryable source.
+
+In order to extract the data that relates to aid flows specific to India, I used the IATI registry API version 1. The downloaded data has a total of 8819 records. Each record is that of an "activity" - a development project with its own unique IATI identifier. 
+
+```{r echo=FALSE, warning=FALSE, fig.height=11, fig.width=7, Load_the_Data}
+######### Load the Data
+
+#url = paste("http://datastore.iatistandard.org/", "/api/1/access/activity.csv?recipient-country=IN&stream=True", sep="")
+#data <- read.csv(url)
+
+##### 
+# The above code to extract data from the IATI site takes some time to run. So lets save the data and then we can read the data from a local directory. The web query was done on November 23, 2015. So the data reflects the state of the IATI registry on that date. To update the data, one can uncomment the above code and run the web query again.
+
+#write.csv(data, "./data/aidToIndia-all.csv")
+
+# Read the data.
+data <- read.csv("./data/aidToIndia-all.csv")
+#summary(data)
+#summary(data$iati.identifier)
+#data1 <- subset(data, is.na(iati.identifier)) # There are two items in the data that have NA values for iati.identifier field. 
+#data1 <- subset(data, is.na(reporting.org)) # There are seven items in the data that have NA values for reporting.org field. They belong to Oxfam NOVIB.
+data$reporting.org <- as.character(data$reporting.org)
+for(i in 1:length(data$reporting.org)) if(data$reporting.org[i] == "") data$reporting.org[i] <- "Oxfam NOVIB"
+data$reporting.org <- as.factor(as.character(data$reporting.org))
+#summary(data$default.language)
+data$hierarchy <- as.factor(data$hierarchy)
+Freq = c()
+for(i in 1:length(levels(data$reporting.org))) Freq[i] <- length(data$reporting.org[data$reporting.org == levels(data$reporting.org)[i]])
+reportingOrg <- data.frame("reporting.org" = levels(data$reporting.org), "Freq" = Freq)
+reportingOrg <- reportingOrg[order(-reportingOrg$Freq),]
+
+#data1 <- subset(data, is.na(reporting.org.type)) # There are seventeen items in the data that have NA values for reporting.org.type field. Based on the information in the other fields for these seventeen items, it is easy to assign appropriate values to the missing cells. 
+data$reporting.org.type <- as.character(data$reporting.org.type)
+for(i in 1:length(data$reporting.org.type)) if(is.na(data$reporting.org.type[i]) & data$reporting.org[i] == "Oxfam NOVIB") data$reporting.org.type[i] <- "International NGO"
+for(i in 1:length(data$reporting.org.type)) if(is.na(data$reporting.org.type[i]) & data$reporting.org[i] == "Christian Aid") data$reporting.org.type[i] <- "International NGO"
+for(i in 1:length(data$reporting.org.type)) if(is.na(data$reporting.org.type[i]) & data$reporting.org[i] == "Aqua for All") data$reporting.org.type[i] <- "Foundation"
+for(i in 1:length(data$reporting.org.type)) if(is.na(data$reporting.org.type[i]) & data$reporting.org[i] == "Department for Environment Food and Rural Affairs") data$reporting.org.type[i] <- "Government"
+data$reporting.org.type <- as.factor(data$reporting.org.type)
+reportingOrgType <- data.frame("reporting.org.type" = levels(data$reporting.org.type), "Freq" = data.frame(summary(data$reporting.org.type))[[1]])
+reportingOrgType <- reportingOrgType[order(-reportingOrgType$Freq),]
+#reportingOrgType
+
+for(i in 1:length(data$participating.org.type..Funding.)) if(data$participating.org.type..Funding.[i] == "" & data$participating.org..Funding.[i] %in% c("USA", "Finland", "GOVERNMENT OF INDIA", "Belgium", "DFID", "GOVT OF NAGALAND", "United Kingdom", "USAID", "DfID")) data$participating.org.type..Funding.[i] <- "Government"
+
+for(i in 1:length(data$participating.org.type..Funding.)) if(data$participating.org.type..Funding.[i] == "" & data$participating.org..Funding.[i] %in% c("UNESCO", "UN WOMEN", "UNF/UNFIP", "UNAIDS", "Office of the United Nations High Commissioner for Refugees (UNHCR)", "The Global Fund to Fight AIDS, Tuberculosis and Malaria", "European Community Humanitarian Office (ECHO)", "ECHO", "EC", "EC (UK)")) data$participating.org.type..Funding.[i] <- "Multilateral"
+
+for(i in 1:length(data$participating.org.type..Funding.)) if(!is.na(data$participating.org..Funding[i])) if(data$participating.org.type..Funding.[i] == "") if(length(grep("Foundation", data$participating.org..Funding.[i])) > 0 | length(grep("FOUNDATION", data$participating.org..Funding.[i])) > 0) data$participating.org.type..Funding.[i] <- "Foundation"
+
+for(i in 1:length(data$participating.org.type..Funding.)) if(data$participating.org.type..Funding.[i] == "" & data$participating.org..Funding.[i] %in% c("UNILEVER", "Private Individuals", "Individual", "Coca Cola India Pvt Ltd.", "Coca Cola - Atlanta", "BASF")) data$participating.org.type..Funding.[i] <- "Private Sector"
+
+for(i in 1:length(data$participating.org.type..Funding.)) if(data$participating.org.type..Funding.[i] == "" & data$participating.org..Funding.[i] %in% c("CAFOD", "WWF-UK", "Water for People")) data$participating.org.type..Funding.[i] <- "International NGO"
+
+#data1 <- subset(data, is.na(data$activity.status.code))
+for(i in 1:length(data$activity.status.code)) if(!is.na(data$activity.status.code[i]) & data$activity.status.code[i] == "Implementation") data$activity.status.code[i] <- "2"
+data$activity.status.code <- ordered(data$activity.status.code, 
+                      levels=c("1", "2", "3", "4", "5", "6"),
+                      labels=c("Pipeline/identification", "Implementation", "Completion", "Post-completion", "Cancelled", "Suspended"))
+
+data$start.planned <- as.Date(data$start.planned, "%Y-%m-%d")
+data$start.actual <- as.Date(data$start.actual, "%Y-%m-%d")
+data$end.planned <- as.Date(data$end.planned, "%Y-%m-%d")
+data$end.actual <- as.Date(data$end.actual, "%Y-%m-%d")
+
+
+## Create a column in the data set for the budget amount in a common USD currency based on 2015 exchange rate. Here we have to take into account that some of the projects are across many countries and only a percentage of the total budget flows to India. ("recipient.country.percentage")
+
+data$recipient.country.code <- gsub(" ", "", as.character(data$recipient.country.code))
+data$recipient.country.percentage <- gsub(" ", "", as.character(data$recipient.country.percentage))
+
+data$recipient.country.percentage[data$recipient.country.code=="IN" & data$recipient.country.percentage=="" & !is.na(data$recipient.country.percentage)] <- 100 ## For all those cases where recipient country is only India and where the recipient.country.percentage is either blank or NA, we assign a 100 to them.
+data$recipient.country.percentage[data$recipient.country.code=="IN;IN" & !is.na(data$recipient.country.percentage)] <- 100
+data$recipient.country.percentage[data$recipient.country.code=="IN;IN;IN" & !is.na(data$recipient.country.percentage)] <- 100
+data$recipient.country.code[data$recipient.country.code=="IN;IN" & !is.na(data$recipient.country.percentage)] <- "IN"
+data$recipient.country.code[data$recipient.country.code=="IN;IN;IN" & !is.na(data$recipient.country.percentage)] <- "IN"
+data$recipient.country.percentage[data$recipient.country.code=="IN" & is.na(data$recipient.country.percentage)] <- 100
+
+shareOfIN <- function(i) {
+  if(data$recipient.country.code[i] == "IN") result <- 100
+  else {
+    x <- strsplit(as.character(data$recipient.country.code[i]), ";")
+    y <- grep("IN", x[[1]])
+    z <- strsplit(as.character(data$recipient.country.percentage[i]), ";")
+    if(!is.na(z[[1]][y])) if(z[[1]][y] == "") result <- NA
+    result <- as.integer(z[[1]][y])
+  }
+  return(result)
+} 
+
+for(i in 1:length(data$recipient.country.code)) if(!is.na(data$recipient.country.code[i])) data$percentShareIN[i] <- shareOfIN(i)
+data$percentShareIN <- as.factor(data$percentShareIN)
+
+data$totalCommitmentUSD <- NA
+data$totalCommitmentUSD <- as.numeric(data$totalCommitmentUSD)
+data$total.Commitment <- as.numeric(data$total.Commitment)
+for(i in 1:length(data$default.currency)) {
+  if(data$default.currency[i] == "AUD" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 0.72 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "CAD" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 0.75 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "DKK" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 0.14 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "EUR" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 1.07 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "GBP" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 1.53 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "INR" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 0.015 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "JPY" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 0.0081 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "NZD" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 0.66 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+  if(data$default.currency[i] == "USD" & !is.na(data$default.currency[i])) data$totalCommitmentUSD[i] <- 1.0 * data$total.Commitment[i] * as.integer(data$percentShareIN[i])/100
+}
+summary(data$totalCommitmentUSD)
+
+
+sectorset <- c()
+data$sector <- as.character(data$sector)
+x <- strsplit(data$sector, ";", fixed = TRUE)
+for(i in 1:length(x)) {
+  if(length(x[[i]]) != 0 && !is.na(x[[i]])) {
+    for(j in 1:length(x[[i]])) {
+      if(x[[i]][j] != "" & !(x[[i]][j] %in% sectorset)) sectorset <- c(sectorset, x[[i]][j])
+    }  
+  }
+}
+## I notice that one of the sectors got split in the sectorsest because it had ";" within it. "Relief co-ordination; protection and support services". I added it to the set and removed the two constituent parts of this sector.
+sectorset <- c(sectorset, "Relief co-ordination; protection and support services")
+sectorset <- sectorset[-105]
+sectorset <- sectorset[-104]
+
+
+count <- NA
+for(i in 1:length(sectorset)) count[i] <- length(grep(sectorset[i], data$sector))
+sectorsdata <- data.frame("sector" = sectorset, "count" = count)
+for(i in 1:length(sectorset)) sectorsdata$totalCommitment[i] <- sum(data$totalCommitmentUSD[grep(sectorset[i], data$sector)], na.rm = TRUE)
+
+
+```
+
+# Univariate Plots Section
+
+Who are the main donors for India with respect to number of projects in India?
+```{r echo=FALSE, warning=FALSE, fig.height=11, fig.width=9, Univariate_Plots}
+ggplot(reportingOrg, aes(reorder(reportingOrg$reporting.org, reportingOrg$Freq), reportingOrg$Freq)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("number of activities") + xlab("\nreporting organizations \nby their number of activities in India\n")
+```
+
+```{r echo=FALSE, warning=FALSE, fig.height=20, fig.width=9}
+ggplot(sectorsdata, aes(reorder(sectorsdata$sector, sectorsdata$totalCommitment), sectorsdata$totalCommitment)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("Total Aid Amount to India (in USD)") + xlab("\nSectors\n")
+```
+
+```{r echo=FALSE, warning=FALSE, fig.height=20, fig.width=9}
+ggplot(sectorsdata, aes(reorder(sectorsdata$sector, sectorsdata$count), sectorsdata$count)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("Number of projects") + xlab("\nSectors\n")
+```
+
+What is getting funded in India?
+```{r}
+data$sector <- as.factor(data$sector)
+## The sector variable is not clean. 
+#data1 <- data.frame("Sector" = levels(data$sector)[-1], 
+#                    "Freq" = data.frame(summary(data$sector))[2:70,1])
+#ggplot(data1, aes(reorder(data1$FundingOrgType, data1$Freq), data1$Freq)) + geom_bar(stat="identity") + coord_flip() +
+#  ylab("number of activities") + xlab("\nParticipating funding org type \nby their number of activities in India\n")
+```
+
+
+In terms of the type of reporting organization, we see from the graph below that "Governments" are the most common type of reporting organization. 
+```{r echo=FALSE, warning=FALSE, fig.height=3, fig.width=9}
+pie <- ggplot(data, aes(x=factor(1), fill = factor(reporting.org.type))) + 
+  geom_bar(width=1)
+
+pie + coord_polar(theta="y") 
+
+ggplot(reportingOrgType, aes(reorder(reportingOrgType$reporting.org, reportingOrgType$Freq), reportingOrgType$Freq)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("number of activities") + xlab("\nreporting org type \nby their number of activities in India\n")
+
+
+data1 <- data.frame("AccountableOrgType" = levels(data$participating.org.type..Accountable.)[-1], 
+                    "Freq" = data.frame(summary(data$participating.org.type..Accountable.))[2:10,1])
+ggplot(data1, aes(reorder(data1$AccountableOrgType, data1$Freq), data1$Freq)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("number of activities") + xlab("\nParticipating accountable org type \nby their number of activities in India\n")
+
+d <- data.frame(summary(data$participating.org.type..Funding.))
+data1 <- data.frame("FundingOrgType" = levels(data$participating.org.type..Funding.), 
+                    "Freq" = d$summary.data.participating.org.type..Funding..)
+ggplot(data1, aes(reorder(data1$FundingOrgType, data1$Freq), data1$Freq)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("number of activities") + xlab("\nParticipating funding org type \nby their number of activities in India\n")
+
+
+data1 <- data.frame("ImplOrgType" = levels(data$participating.org.type..Implementing.)[-1], 
+                    "Freq" = data.frame(summary(data$participating.org.type..Implementing.))[2:11,1])
+ggplot(data1, aes(reorder(data1$ImplOrgType, data1$Freq), data1$Freq)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("number of activities") + xlab("\nParticipating implementing org type \nby their number of activities in India\n")
+
+d <- data.frame(summary(data$participating.org.type..Extending.))
+data1 <- data.frame("ExtendingOrgType" = levels(data$participating.org.type..Extending.), 
+                    "Freq" = d$summary.data.participating.org.type..Extending..)
+ggplot(data1, aes(reorder(data1$ExtendingOrgType, data1$Freq), data1$Freq)) + geom_bar(stat="identity") + coord_flip() +
+  ylab("number of activities") + xlab("\nParticipating extending org type \nby their number of activities in India\n")
+
+```
+
+Activity Status
+```{r echo=FALSE, warning=FALSE, fig.height=3, fig.width=9}
+ggplot(data, aes(activity.status.code)) + geom_bar() + coord_flip() +
+  ylab("number of activities") + xlab("\nActivity Status Code\n") +
+  ggtitle("Distribution of activities based on their completion status\n")
+
+```
+
+# Univariate Analysis
+
+Let us look at projects for which we have both planned start and end dates and actual start and end dates.
+```{r}
+
+
+data$startDelay <- as.integer(as.Date(data$start.actual) - as.Date(data$start.planned))
+data$endDelay <- as.integer(as.Date(data$end.actual) - as.Date(data$end.planned))
+
+data$lengthPlanned <- as.integer(data$end.planned - data$start.planned)
+data$lengthActual <- as.integer(data$end.actual - data$start.actual)
+
+summary(data$startDelay)
+summary(data$endDelay)
+summary(data$lengthPlanned)
+summary(data$lengthActual)
+
+```
+
+Let us look at the cases for which planned length of the project (in terms of number of days) is negative. We see that there are 51 such cases and most of them are in implementation phase. I could not find any reason for why they would have less than 0 days planned for the project other than human error in entering the start and end dates. I also looked at cases where the actual length of the prject is negative (9 cases) and where the project started earlier than planned (53 cases) or the project ended earlier than planned (33 cases). I could not see any pattern in these cases other than the fact that these cases were being reported by only a handful (3 or 4) development agencies. It suggests to me that there are some problem in the internal processes of these organizations that allows errors to creep into the dates.  
+
+```{r}
+data1 <- subset(data, lengthPlanned <= 0)     ### 69 cases. Mostly cases come from JICA, BMZ, Danish Foreign Ministry.
+data1 <- subset(data, lengthActual <= 0)      ### 10 cases. Mostly cases from BMZ and Danish Foreign Ministry.
+
+data1 <- subset(data, endDelay < 0)           ### 41 cases. Mostly Dutch Ministry of Foreign Affairs and ADB
+data1 <- subset(data, startDelay < 0)         ### 88 cases. Mostly from European Commission, World Bank Group and BMZ.
+```
+
+
+What was the distribution of the time by which projects had a delayed start?
+```{r}
+ggplot(data, aes(startDelay)) + geom_bar()
+ggplot(data, aes(endDelay)) + geom_bar()
+ggplot(data, aes(activity.status.code, startDelay)) + geom_boxplot()
+ggplot(data, aes(activity.status.code, endDelay)) + geom_boxplot()
+
+ggplot(data, aes(lengthPlanned)) + geom_bar()
+ggplot(data, aes(lengthActual)) + geom_bar()
+ggplot(data, aes(activity.status.code, lengthPlanned)) + geom_boxplot()
+ggplot(data, aes(activity.status.code, lengthActual)) + geom_boxplot()
+```
+
+If we zoom in and look at the distribution of planned length (in terms of number of days) for projects, we notice that the bars are taller at regular intervals of about 365 days. It is consistent with what we would expect given that most projects at the planning stages, are planned for a duration of time mostly in terms of whole number of years. In fact, the actual length of projects also mirror this.  
+```{r}
+ggplot(data, aes(lengthPlanned)) + geom_bar(binwidth = 50) + coord_cartesian(xlim = c(-300, 4000))
+ggplot(data, aes(lengthPlanned)) + geom_bar(binwidth = 1) + coord_cartesian(xlim = c(300, 400))
+
+ggplot(data, aes(lengthActual)) + geom_bar(binwidth = 50) + coord_cartesian(xlim = c(-300, 4000))
+ggplot(data, aes(lengthActual)) + geom_bar(binwidth = 1) + coord_cartesian(xlim = c(300, 400))
+```
+
+Let us look at the total amount committed and disbursed in a common currency, say USD.
+```{r}
+
+
+#ggplot(data, aes(totalCommitmentUSD)) + geom_histogram(binwidth=5000) + coord_cartesian(xlim = c(0, 2500))
+```
+
+"end.actual"-"end.planned"
+
+
+
+### What is the structure of your dataset?
+
+- Their are errors in the data 
+- This is not the complete list of development projects. Only those actors that have chosen to publish their data through IATI are here. There may be many more actors that are funding projects but that do not publish with IATI. So this data should not be seen as comprehensive list of all development projects in India.
+- I would assume, this data is biased towards the largest development actors. Large numbers smaller actors such as local and regional NGOs currently do not have the capacity to standardize their data to publish with IATI. 
+
+### What is/are the main feature(s) of interest in your dataset?
+
+1) Start dates and end dates of projects (both actual and planned)
+2) Total committed funds for each project.
+3) Sector categories
+4) Agencies and their types
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+### Did you create any new variables from existing variables in the dataset?
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+
+
+# Bivariate Plots Section
+```{r echo=FALSE, warning=FALSE, Bivariate_Plots}
+ggplot(data, aes(activity.status.code, startDelay)) + geom_boxplot()
+
+ggplot(data, aes(activity.status.code, totalCommitmentUSD)) + geom_boxplot()
+
+ggplot(data, aes(participating.org.type..Funding., totalCommitmentUSD)) + geom_boxplot() + coord_cartesian(ylim = c(-3000, 20000000)) 
+
+ggplot(data, aes(participating.org.type..Implementing., totalCommitmentUSD)) + geom_boxplot() + coord_cartesian(ylim = c(-3000, 1000000))
+
+
+```
+Lets also explore the relationship between when a project was planned to start (proxy for when a project was conceived) and the amount of USD committed. We would know if there is a trend in terms of the project size.
+
+```{r echo=FALSE, warning=FALSE}
+
+ggplot(data, aes(as.Date(start.planned), totalCommitmentUSD)) + geom_point()
+
+## If we look at only large projects with more than 25 million USD of committed funds....
+
+ggplot(subset(data, totalCommitmentUSD > 25000000.00), aes(as.Date(start.planned), totalCommitmentUSD)) + geom_point()
+
+ggplot(data, aes(as.Date(start.planned))) + geom_histogram() 
+
+## If we exclude very small projects with less than 25,000 USD of committed funds....
+
+ggplot(subset(data, totalCommitmentUSD > 25000.00), aes(as.Date(start.planned))) + geom_histogram() 
+
+
+
+```
+
+# Bivariate Analysis
+
+Is there a relationship between the amount of time by which start was delayed and the amount of time by which the end of the project was delayed?
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+### What was the strongest relationship you found?
+
+
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, warning=FALSE, Multivariate_Plots}
+
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+### Were there any interesting or surprising interactions between features?
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, warning=FALSE, Plot_One}
+
+```
+
+### Description One
+
+
+### Plot Two
+```{r echo=FALSE, warning=FALSE, Plot_Two}
+
+```
+
+### Description Two
+
+
+### Plot Three
+```{r echo=FALSE, warning=FALSE, Plot_Three}
+
+```
+
+### Description Three
+
+------
+
+# Reflection
